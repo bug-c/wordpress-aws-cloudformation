@@ -1,0 +1,360 @@
+Description: >
+    Deploy Wordpress Cluster - Network ACL template
+
+Parameters:
+    
+    StackName:
+        Description: An stack name that will be prefixed to resource names
+        Type: String
+        
+    EnvironmentName:
+        Description: An environment name
+        Type: String
+   
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+
+    # VPC:
+        # Type: AWS::EC2::VPC::ID
+        # Description: Choose which VPC the security groups should be deployed to
+        
+    PublicNetworkAcl:
+        Type: String
+        Description: PublicNetworkAcl ID
+        
+    PrivateNetworkAcl:
+        Type: String
+        Description: PrivateNetworkAcl ID
+        
+    DBNetworkAcl:
+        Type: String
+        Description: DBNetworkAcl ID
+
+Resources:
+            
+    PublicNaclIn100:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            Protocol: 1
+            Icmp:
+                Code: "-1"
+                Type: "-1"
+            RuleAction : allow
+            RuleNumber : "100"
+
+    PublicNaclIn101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 80
+                To: 80
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "101"
+            
+    PublicNaclIn102:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 443
+                To: 443
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "102"
+            
+    PublicNaclIn1000:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1000"
+
+    PublicNaclIn1100:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            Ipv6CidrBlock: "::/0"
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 80
+                To: 80
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1100"
+            
+    PublicNaclIn1101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            Ipv6CidrBlock: "::/0"
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 443
+                To: 443
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1101"
+            
+    PublicNaclIn2000:            
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            Ipv6CidrBlock: "::/0"
+            Egress: false
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "2000"
+          
+    PublicNaclOut100:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            Protocol: 1
+            Icmp:
+                Code: "-1"
+                Type: "-1"
+            RuleAction : allow
+            RuleNumber : "100"
+
+    PublicNaclOut101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 80
+                To: 80
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "101"
+            
+    PublicNaclOut102:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 443
+                To: 443
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "102"
+            
+    PublicNaclOut1000:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1000"
+            
+    PublicNaclOut1100:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            Ipv6CidrBlock: "::/0"
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 80
+                To: 80
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1100"
+            
+    PublicNaclOut1101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            Ipv6CidrBlock: "::/0"
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 443
+                To: 443
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1101"
+            
+    PublicNaclOut2000:            
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            Ipv6CidrBlock: "::/0"
+            Egress: true
+            NetworkAclId: !Ref PublicNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "2000"
+            
+    PrivateNaclIn100:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: false
+            NetworkAclId: !Ref PrivateNetworkAcl
+            Protocol: 1
+            Icmp:
+                Code: "-1"
+                Type: "-1"
+            RuleAction : allow
+            RuleNumber : "100"
+            
+    PrivateNaclIn101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: false
+            NetworkAclId: !Ref PrivateNetworkAcl
+            PortRange:
+                From: 1
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "101"
+            
+    PrivateNaclIn1000:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: false
+            NetworkAclId: !Ref PrivateNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1000"
+            
+    PrivateNaclIn100:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            Protocol: 1
+            Icmp:
+                Code: "-1"
+                Type: "-1"
+            RuleAction : allow
+            RuleNumber : "100"
+            
+    PrivateNaclOut101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            PortRange:
+                From: 80
+                To: 80
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "101"
+            
+    PrivateNaclOut102:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            PortRange:
+                From: 443
+                To: 443
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "102"
+            
+    PrivateNaclOut1000:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: "0.0.0.0/0"
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1000"
+                       
+    PrivateNaclOut1001:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: true
+            NetworkAclId: !Ref PrivateNetworkAcl
+            PortRange:
+                From: 1
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1001"
+                        
+    DBNaclIn101:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: false
+            NetworkAclId: !Ref DBNetworkAcl
+            PortRange:
+                From: 3306
+                To: 3306
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "101"
+               
+    DBNaclIn102:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: false
+            NetworkAclId: !Ref DBNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "102"
+            
+    DBNaclOut1000:
+        Type: AWS::EC2::NetworkAclEntry
+        Properties: 
+            CidrBlock: !Ref VpcCIDR
+            Egress: true
+            NetworkAclId: !Ref DBNetworkAcl
+            PortRange:
+                From: 1024
+                To: 65535
+            Protocol: 6
+            RuleAction : allow
+            RuleNumber : "1000"
+
