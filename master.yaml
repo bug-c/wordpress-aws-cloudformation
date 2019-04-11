@@ -1,0 +1,280 @@
+Description: >
+    Deploy Wordpress Cluster - main template.
+
+Parameters:
+    EnvironmentName:
+        Description: Environment Name
+        Type: String
+        Default: testing
+        AllowedValues:
+          - production
+          - staging
+          - testing
+          - development
+        ConstraintDescription: Selected an existent environment name from the list.
+    
+    VpcCIDR: 
+        Description: Please enter the IP range (CIDR notation) for this VPC
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.0/24"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    PublicSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.0/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    PublicSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.16/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    PublicSubnet3CIDR:
+        Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.32/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    PrivateSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.48/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    PrivateSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.64/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+        
+    PrivateSubnet3CIDR:
+        Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.80/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    DBSubnet1CIDR:
+        Description: Please enter the IP range (CIDR notation) for the DB subnet in the first Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.96/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    DBSubnet2CIDR:
+        Description: Please enter the IP range (CIDR notation) for the DB subnet in the second Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.112/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+        
+    DBSubnet3CIDR:
+        Description: Please enter the IP range (CIDR notation) for the DB subnet in the second Availability Zone
+        Type: String
+        MinLength: 9
+        MaxLength: 18
+        Default: "192.0.2.128/28"
+        AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+        ConstraintDescription: "must be a valid CIDR range of the form x.x.x.x/x."
+
+    KeyName:
+        Description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
+        Type: 'AWS::EC2::KeyPair::KeyName'
+        ConstraintDescription: 'must be the name of an existing EC2 KeyPair.'
+        Default: key_name
+        
+    MysqlClusterType:
+        Type: String
+        Default: aurora_serverless
+        AllowedValues:
+          - aurora
+          - aurora_serverless
+        ConstraintDescription: Selected an mysql cluster type from the list.
+        
+    MysqlUser:
+        NoEcho: 'true'
+        Description: Mysql username
+        Type: String
+        MinLength: '1'
+        MaxLength: '16'
+        AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+        ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+        Default: "wordpressadmin"
+        
+    MysqlPassword:
+        NoEcho: 'true'
+        Description: The database admin account password
+        Type: String
+        MinLength: '1'
+        MaxLength: '41'
+        AllowedPattern: '[a-zA-Z0-9]+'
+        ConstraintDescription: must contain only alphanumeric characters.
+        Default: "strongpassword"
+    
+    KeyName:
+        Description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
+        Type: 'AWS::EC2::KeyPair::KeyName'
+        ConstraintDescription: 'must be the name of an existing EC2 KeyPair.'
+        Default: key_name
+
+    InstanceType:
+        Description: ECS Node instance type
+        Type: String
+        Default: t3.large
+        
+    InstanceTypesOverride:
+        Description: ECS Node spot instance type
+        Type: String
+        Default: "t3.medium,t3.large,t3.xlarge"
+    
+    ClusterMinSize:
+        Description: Minimum ECS Nodes
+        Type: Number
+        Default: 1
+        
+    ClusterDesiredSize:
+        Description: Minimum ECS Nodes in service
+        Type: Number
+        Default: 2
+        
+    ClusterMaxSize:
+        Description: Max ECS Nodes
+        Type: Number
+        Default: 4
+        
+    OnDemandBaseCapacity:
+        Description: Minimum on demand ECS Nodes
+        Type: Number
+        Default: 0
+    OnDemandPercentageAboveBaseCapacity:
+        Description: On demand percentance over base capacity for ECS Nodes
+        Type: Number
+        Default: 2
+        
+    SpotInstancePools:
+        Description: Spot instances pools for ECS Nodes
+        Type: Number
+        Default: 2
+
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups:
+      - 
+        Label: 
+            default: "Network Configuration"
+        Parameters: 
+            - VpcCIDR 
+            - PublicSubnet1CIDR
+            - PublicSubnet2CIDR
+            - PublicSubnet3CIDR
+            - PrivateSubnet1CIDR
+            - PrivateSubnet2CIDR      
+            - PrivateSubnet3CIDR
+            - DBSubnet1CIDR
+            - DBSubnet2CIDR       
+            - DBSubnet3CIDR
+      - 
+        Label: 
+            default: "Database Configuration"
+        Parameters: 
+            - MysqlClusterType
+            - MysqlUser
+            - MysqlPassword
+      - 
+        Label: 
+            default: "Nodes Configuration"
+        Parameters: 
+            - KeyName
+            - InstanceType
+            - InstanceTypesOverride
+            - ClusterMinSize
+            - ClusterDesiredSize
+            - ClusterMaxSize
+            - OnDemandBaseCapacity
+            - OnDemandPercentageAboveBaseCapacity
+            - SpotInstancePools
+  
+Resources:
+
+    VPC:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: infrastructure/vpc.yaml
+            Parameters:
+                StackName:          !Ref AWS::StackName
+                EnvironmentName:    !Ref EnvironmentName
+                VpcCIDR:            !Ref VpcCIDR
+                PublicSubnet1CIDR:  !Ref PublicSubnet1CIDR
+                PublicSubnet2CIDR:  !Ref PublicSubnet2CIDR
+                PublicSubnet3CIDR:  !Ref PublicSubnet3CIDR
+                PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+                PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+                PrivateSubnet3CIDR: !Ref PrivateSubnet3CIDR
+                DBSubnet1CIDR:      !Ref DBSubnet1CIDR
+                DBSubnet2CIDR:      !Ref DBSubnet2CIDR
+                DBSubnet3CIDR:      !Ref DBSubnet3CIDR
+
+    NetworkACL:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: infrastructure/network-acl.yaml
+            Parameters: 
+                StackName: !Ref AWS::StackName
+                EnvironmentName: !Ref EnvironmentName
+                VpcCIDR: !Ref VpcCIDR
+                PublicNetworkAcl: !GetAtt VPC.Outputs.PublicNetworkAcl
+                PrivateNetworkAcl: !GetAtt VPC.Outputs.PrivateNetworkAcl
+                DBNetworkAcl: !GetAtt VPC.Outputs.DBNetworkAcl
+
+    SecurityGroups:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: infrastructure/security-groups.yaml
+            Parameters: 
+                StackName: !Ref AWS::StackName
+                EnvironmentName: !Ref EnvironmentName
+                VPC: !GetAtt VPC.Outputs.VPC
+                PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+                PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+                PrivateSubnet3CIDR: !Ref PrivateSubnet3CIDR
+
+    ALB:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: infrastructure/load-balancers.yaml
+            Parameters:
+                StackName: !Ref AWS::StackName
+                EnvironmentName: !Ref EnvironmentName
+                #LogsBucket: !Ref LogsBucket
+                VPC: !GetAtt VPC.Outputs.VPC
+                PublicSubnets: !GetAtt VPC.Outputs.PublicSubnets
+                PrivateSubnets: !GetAtt VPC.Outputs.PrivateSubnets
+                SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+                InternalSecurityGroup: !GetAtt SecurityGroups.Outputs.InternalLoadBalancerSecurityGroup
+                
