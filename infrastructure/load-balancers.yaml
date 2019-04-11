@@ -1,0 +1,210 @@
+Description: >
+    Application Load Balancer template.
+
+Parameters:
+
+    StackName:
+        Description: An stack name that will be prefixed to resource names
+        Type: String
+        
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+    
+    # LogsBucket:
+        # Description: S3 bucket for storing load balancer logs
+        # Type: String
+    
+    VPC:
+        Type: AWS::EC2::VPC::Id
+        Description: Choose which VPC the Application Load Balancer should be deployed to
+
+    PublicSubnets:
+        Description: Choose which subnets the Public Application Load Balancer should be deployed to
+        Type: List<AWS::EC2::Subnet::Id>
+        
+    PrivateSubnets:
+        Description: Choose which subnets the Private Application Load Balancer should be deployed to
+        Type: List<AWS::EC2::Subnet::Id>
+
+    SecurityGroup:
+        Description: Select the Security Group to apply to the Application Load Balancer
+        Type: AWS::EC2::SecurityGroup::Id
+        
+    InternalSecurityGroup:
+        Description: Select the Security Group to apply to the Application Load Balancer
+        Type: AWS::EC2::SecurityGroup::Id
+      
+Conditions:
+
+    IsProduction:
+        !Equals [!Ref EnvironmentName, production]
+
+Resources:
+
+    LoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: !Sub ${StackName}-public
+            Scheme: internet-facing
+            Subnets: !Ref PublicSubnets
+            IpAddressType: dualstack
+            LoadBalancerAttributes:
+                - Key: idle_timeout.timeout_seconds
+                  Value: '180'
+                - Key: routing.http2.enabled
+                  Value: true
+                - Key: deletion_protection.enabled
+                  Value: !If [IsProduction, true, false]
+                # - Key: access_logs.s3.enabled
+                  # Value: !If [IsProduction, true, false]
+                # - Key: access_logs.s3.bucket
+                  # Value: !Ref LogsBucket
+                # - Key: access_logs.s3.prefix
+                  # Value: !Join 
+                    # - '/'
+                    # - - !Ref EnvironmentName
+                      # - !Ref StackName
+
+            SecurityGroups: 
+                - !Ref SecurityGroup
+            Tags: 
+                - Key: Name
+                  Value: !Sub ${StackName}-lb
+                - Key: Environment 
+                  Value: !Ref EnvironmentName
+
+    # # WebACLAssociation:
+        # # Type: "AWS::WAFRegional::WebACLAssociation"
+        # # Properties:
+          # # ResourceArn: !Ref LoadBalancer
+          # # WebACLId: !Ref WAFWebACL
+                
+    LoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref LoadBalancer
+            Port: 80
+            Protocol: HTTP 
+            DefaultActions:
+                - RedirectConfig:
+                    Host: "#{host}"
+                    Path: "/#{path}"
+                    Port: 443
+                    Protocol: "HTTPS"
+                    Query: "#{query}"
+                    StatusCode: HTTP_301
+                  Type: redirect
+                      
+    # TargetGroup:
+        # Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        # Properties:
+            # Name: !Sub ${StackName}-group1
+            # VpcId: !Ref VPC
+            # Port: 80
+            # Protocol: HTTP
+            # Matcher: 
+                # HttpCode: 200
+            # HealthCheckIntervalSeconds: 10
+            # HealthCheckPath: /
+            # HealthCheckProtocol: HTTP
+            # HealthCheckTimeoutSeconds: 5
+            # HealthyThresholdCount: 2
+            
+    InternalLoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+            Name: !Sub ${StackName}-internal
+            Scheme: internal
+            Subnets: !Ref PrivateSubnets
+            LoadBalancerAttributes:
+                - Key: idle_timeout.timeout_seconds
+                  Value: '180'
+                - Key: deletion_protection.enabled
+                  Value: !If [IsProduction, true, false]
+
+            SecurityGroups: 
+                - !Ref InternalSecurityGroup
+            Tags: 
+                - Key: Name
+                  Value: !Sub ${StackName}-internal
+                - Key: Environment 
+                  Value: !Ref EnvironmentName
+
+    InternalLoadBalancerListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            LoadBalancerArn: !Ref InternalLoadBalancer
+            Port: 80
+            Protocol: HTTP 
+            DefaultActions: 
+                - Type: forward
+                  TargetGroupArn: !Ref InternalTargetGroup
+    
+    InternalTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: !Sub ${StackName}-internal
+            VpcId: !Ref VPC
+            Port: 80
+            Protocol: HTTP
+            Matcher: 
+                HttpCode: 200
+           
+    # PublicListenerHTTPS1:
+        # Type: 'AWS::ElasticLoadBalancingV2::Listener'
+        # Properties:
+            # Certificates:
+                # - CertificateArn: !FindInMap
+                    # - SSLmapping1
+                    # - ssl1
+                    # - !FindInMap
+                      # - AWSRegionsNameMapping
+                      # - !Ref 'AWS::Region'
+                      # - RegionName
+            # DefaultActions:
+                # - Type: forward
+                  # TargetGroupArn: !Ref TargetGroup
+            # LoadBalancerArn: !Ref LoadBalancer
+            # Port: '443'
+            # Protocol: HTTPS
+            # SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+
+Outputs:
+
+    LoadBalancer:
+        Description: A reference to the Application Load Balancer
+        Value: !Ref LoadBalancer
+
+    InternalLoadBalancer:
+        Description: A reference to the Application Load Balancer
+        Value: !Ref InternalLoadBalancer
+
+    LoadBalancerUrl:
+        Description: The URL of the Public ALB
+        Value: !GetAtt LoadBalancer.DNSName
+
+    InternalLoadBalancerUrl:
+        Description: The URL of the Internal ALB
+        Value: !GetAtt InternalLoadBalancer.DNSName
+
+    Listener:
+        Description: A reference to a port 80 listener
+        Value: !Ref LoadBalancerListener  
+        
+    InternalListener:
+        Description: A reference to a port 80 listener
+        Value: !Ref InternalLoadBalancerListener    
+        
+    InternalTargetGroup:
+        Description: A reference to InternalTargetGroup
+        Value: !Ref InternalTargetGroup
+
+    # TargetGroup:
+        # Description: A reference to TargetGroup
+        # Value: !Ref TargetGroup  
+
+    # PublicListenerHTTPS1:
+        # Description: A reference to the Application Load Balancer
+        # Value: !Ref PublicListenerHTTPS1
+        
