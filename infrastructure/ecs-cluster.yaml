@@ -1,0 +1,404 @@
+Description: >
+    Deploy Wordpress Cluster - ECS cluster template.
+
+Parameters:
+
+    StackName:
+        Description: An stack name that will be prefixed to resource names
+        Type: String
+        
+    EnvironmentName:
+        Description: An environment name that will be prefixed to resource names
+        Type: String
+        
+    KeyName:
+        Description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
+        Type: 'AWS::EC2::KeyPair::KeyName'
+        ConstraintDescription: 'must be the name of an existing EC2 KeyPair.'
+        
+    InstanceType:
+        Description: Which instance type should we use for ECS nodes?
+        Type: String
+        Default: t3.large
+
+    InstanceTypesOverride:
+        Type: String
+        Description: "multiple spot instances to override(seperated by comma)"
+        Default: "t3.medium,t3.large,t3.xlarge"
+
+    ClusterMinSize:
+        Description: EKS minimum number of nodes.
+        Type: Number
+
+    ClusterDesiredSize:
+        Description: EKS desired number of nodes.
+        Type: Number
+
+    ClusterMaxSize:
+        Description: EKS maximum number of nodes.
+        Type: Number
+        
+    OnDemandBaseCapacity:
+        Type: Number
+        Description: "on-demand base capacity"
+        Default: 2
+
+    OnDemandPercentageAboveBaseCapacity:
+        Type: Number
+        Description: "on-demand percentage above base capacity(0-100)"
+        Default: 0
+        
+    SpotInstancePools:
+        Type: Number
+        Description: "spot instance pools(1-20)"
+        Default: 2
+        
+    VPC:
+        Description: Choose which VPC this ECS cluster should be deployed to
+        Type: AWS::EC2::VPC::Id
+
+    Subnets:
+        Description: Choose which subnets this ECS cluster should be deployed to
+        Type: List<AWS::EC2::Subnet::Id>
+
+    SecurityGroup:
+        Description: Select the Security Group to use for the ECS cluster hosts
+        Type: AWS::EC2::SecurityGroup::Id
+        
+Mappings:
+
+    # You can find the latest available on this page of our documentation:
+    # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/al2ami.html
+    # (note the AMI identifier is region specific)
+
+    AWSRegionToAMI:
+        # us-east-2:
+            # AMI: ami-b86a5ddd
+        # us-east-1:
+            # AMI: ami-a7a242da
+        # us-west-2:
+            # AMI: ami-92e06fea
+        # us-west-1:
+            # AMI: ami-9ad4dcfa
+        eu-west-3:
+            AMI: ami-067e52f6552e2dac1
+        eu-west-2:
+            AMI: ami-0376206bb575c76dd
+        eu-west-1:
+            AMI: ami-0728d926f3f65c089
+        # eu-central-1:
+            # AMI: ami-0799fa68
+        # ap-northeast-2:
+            # AMI: ami-a5dd70cb
+        # ap-northeast-1:
+            # AMI: ami-68ef940e
+        # ap-southeast-2:
+            # AMI: ami-ee884f8c
+        # ap-southeast-1:
+            # AMI: ami-0a622c76
+        # ca-central-1:
+            # AMI: ami-5ac94e3e
+        # ap-south-1:
+            # AMI: ami-2e461a41
+        # sa-east-1:
+            # AMI: ami-d44008b8
+
+Resources:               
+
+    ECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: !Sub ${StackName}
+
+    ECSAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            VPCZoneIdentifier: !Ref Subnets
+            MixedInstancesPolicy:
+                InstancesDistribution:
+                  OnDemandAllocationStrategy: prioritized
+                  OnDemandBaseCapacity: !Ref OnDemandBaseCapacity
+                  OnDemandPercentageAboveBaseCapacity: !Ref OnDemandPercentageAboveBaseCapacity
+                  SpotAllocationStrategy: lowest-price
+                  SpotInstancePools: !Ref SpotInstancePools
+                LaunchTemplate:
+                  LaunchTemplateSpecification: 
+                    LaunchTemplateId: !Ref NodeLaunchTemplate
+                    Version: !GetAtt NodeLaunchTemplate.LatestVersionNumber
+                  Overrides: 
+                    - InstanceType: !Select [0, !Split [ ",", !Ref InstanceTypesOverride ] ]
+                    - InstanceType: !Select [1, !Split [ ",", !Ref InstanceTypesOverride ] ]
+                    - InstanceType: !Select [2, !Split [ ",", !Ref InstanceTypesOverride ] ]
+            MinSize: !Ref ClusterMinSize
+            MaxSize: !Ref ClusterMaxSize
+            DesiredCapacity: !Ref ClusterDesiredSize
+            Tags:
+                - Key: Name
+                  Value: !Sub ${StackName}-ECS-node
+                  PropagateAtLaunch: true
+                - Key: Environment
+                  Value: !Ref EnvironmentName
+                  PropagateAtLaunch: true
+        CreationPolicy:
+            ResourceSignal:
+                Timeout: PT15M
+        UpdatePolicy:
+            AutoScalingRollingUpdate:
+                MinInstancesInService: !Ref ClusterDesiredSize
+                MaxBatchSize: 2
+                PauseTime: PT15M
+                SuspendProcesses:
+                  - HealthCheck
+                  - ReplaceUnhealthy
+                  - AZRebalance
+                  - AlarmNotification
+                  - ScheduledActions
+                WaitOnResourceSignals: true
+
+    NodeLaunchTemplate:
+        Type: AWS::EC2::LaunchTemplate
+        Properties:
+            LaunchTemplateName: !Sub "${AWS::StackName}-ecsLaunchTemplate"
+            LaunchTemplateData: 
+                SecurityGroupIds:
+                    - !Ref SecurityGroup
+                TagSpecifications: 
+                  -
+                    ResourceType: instance
+                    Tags:
+                      - Key: Name
+                        Value: !Sub ${StackName}-ECS-node
+                UserData: 
+                  Fn::Base64:
+                    !Sub |
+                    #!/bin/bash
+                    set -o xtrace
+                    yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+                    yum install -y https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+                    yum install -y aws-cfn-bootstrap hibagent
+                    /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource NodeLaunchTemplate                        
+                    /opt/aws/bin/cfn-signal --exit-code $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
+                    /usr/bin/enable-ec2-spot-hibernation
+                    
+                IamInstanceProfile: 
+                  Arn: !GetAtt ECSInstanceProfile.Arn
+                KeyName: !Ref KeyName
+                ImageId: !FindInMap [AWSRegionToAMI, !Ref "AWS::Region", AMI]
+                InstanceType: !Ref InstanceType
+        Metadata:
+            AWS::CloudFormation::Init:
+                config:
+                    packages:
+                        yum:
+                            collectd: []
+                            awslogs: []
+                            
+
+                    commands:
+                        01_add_instance_to_cluster:
+                            command: !Sub echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+                        02_enable_cloudwatch_agent:
+                          command: !Sub /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c ssm:${ECSCloudWatchParameter} -s
+
+                    files:
+                        "/etc/cfn/cfn-hup.conf":
+                            mode: 000400
+                            owner: root
+                            group: root
+                            content: !Sub |
+                                [main]
+                                stack=${AWS::StackId}
+                                region=${AWS::Region}
+
+                        "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+                            content: !Sub |
+                                [cfn-auto-reloader-hook]
+                                triggers=post.update
+                                path=Resources.NodeLaunchTemplate.Metadata.AWS::CloudFormation::Init
+                                action=/opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource NodeLaunchTemplate
+
+                    services:
+                        sysvinit:
+                            cfn-hup:
+                                enabled: true
+                                ensureRunning: true
+                                files:
+                                    - /etc/cfn/cfn-hup.conf
+                                    - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+
+    ECSRole:
+        Type: AWS::IAM::Role
+        Properties:
+            Path: /
+            RoleName: !Sub ${StackName}-ECSRole-${AWS::Region}
+            AssumeRolePolicyDocument: |
+                {
+                    "Statement": [{
+                        "Action": "sts:AssumeRole",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "ec2.amazonaws.com"
+                        }
+                    }]
+                }
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+                - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+                - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+            Policies:
+                - PolicyName: ecs-service
+                  PolicyDocument: |
+                    {
+                        "Statement": [{
+                            "Effect": "Allow",
+                            "Action": [
+                                "ecs:CreateCluster",
+                                "ecs:DeregisterContainerInstance",
+                                "ecs:DiscoverPollEndpoint",
+                                "ecs:Poll",
+                                "ecs:RegisterContainerInstance",
+                                "ecs:StartTelemetrySession",
+                                "ecs:Submit*",
+                                "ecr:BatchCheckLayerAvailability",
+                                "ecr:BatchGetImage",
+                                "ecr:GetDownloadUrlForLayer",
+                                "ecr:GetAuthorizationToken",
+                                "ssm:GetParameter"
+                            ],
+                            "Resource": "*"
+                        }]
+                    }
+
+    ECSInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties:
+            Path: /
+            Roles:
+                - !Ref ECSRole
+
+    ECSServiceAutoScalingRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    Action:
+                    - 'sts:AssumeRole'
+                    Effect: Allow
+                    Principal:
+                        Service:
+                        - application-autoscaling.amazonaws.com
+            Path: /
+            Policies:
+            - PolicyName: ecs-service-autoscaling
+              PolicyDocument:
+                  Statement:
+                      Effect: Allow
+                      Action:
+                      - application-autoscaling:*
+                      - cloudwatch:DescribeAlarms
+                      - cloudwatch:PutMetricAlarm
+                      - ecs:DescribeServices
+                      - ecs:UpdateService
+                      Resource: "*"
+
+    ECSCloudWatchParameter:
+        Type: AWS::SSM::Parameter
+        Properties:
+          Description: ECS
+          Name: !Sub "${ECSCluster}-AmazonCloudWatch-ECS"
+          Type: String
+          Value: !Sub |
+            {
+              "logs": {
+                "force_flush_interval": 5,
+                "logs_collected": {
+                  "files": {
+                    "collect_list": [
+                      {
+                        "file_path": "/var/log/messages",
+                        "log_group_name": "${ECSCluster}-/var/log/messages",
+                        "log_stream_name": "{instance_id}",
+                        "timestamp_format": "%b %d %H:%M:%S"
+                      },
+                      {
+                        "file_path": "/var/log/dmesg",
+                        "log_group_name": "${ECSCluster}-/var/log/dmesg",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/docker",
+                        "log_group_name": "${ECSCluster}-/var/log/docker",
+                        "log_stream_name": "{instance_id}",
+                        "timestamp_format": "%Y-%m-%dT%H:%M:%S.%f"
+                      },
+                      {
+                        "file_path": "/var/log/ecs/ecs-init.log",
+                        "log_group_name": "${ECSCluster}-/var/log/ecs/ecs-init.log",
+                        "log_stream_name": "{instance_id}",
+                        "timestamp_format": "%Y-%m-%dT%H:%M:%SZ"
+                      },
+                      {
+                        "file_path": "/var/log/ecs/ecs-agent.log.*",
+                        "log_group_name": "${ECSCluster}-/var/log/ecs/ecs-agent.log",
+                        "log_stream_name": "{instance_id}",
+                        "timestamp_format": "%Y-%m-%dT%H:%M:%SZ"
+                      },
+                      {
+                        "file_path": "/var/log/ecs/audit.log",
+                        "log_group_name": "${ECSCluster}-/var/log/ecs/audit.log",
+                        "log_stream_name": "{instance_id}",
+                        "timestamp_format": "%Y-%m-%dT%H:%M:%SZ"
+                      }
+                    ]
+                  }
+                }
+              },
+              "metrics": {
+                "append_dimensions": {
+                  "AutoScalingGroupName": "${!aws:AutoScalingGroupName}",
+                  "InstanceId": "${!aws:InstanceId}",
+                  "InstanceType": "${!aws:InstanceType}"
+                },
+                "metrics_collected": {
+                  "collectd": {
+                    "metrics_aggregation_interval": 60
+                  },
+                  "disk": {
+                    "measurement": [
+                      "used_percent"
+                    ],
+                    "metrics_collection_interval": 60,
+                    "resources": [
+                      "/"
+                    ]
+                  },
+                  "mem": {
+                    "measurement": [
+                      "mem_used_percent"
+                    ],
+                    "metrics_collection_interval": 60
+                  },
+                  "statsd": {
+                    "metrics_aggregation_interval": 60,
+                    "metrics_collection_interval": 10,
+                    "service_address": ":8125"
+                  }
+                }
+              }
+            }
+        
+# Outputs:
+
+    # Cluster:
+        # Description: A reference to the ECS cluster
+        # Value: !Ref ECSCluster
+        
+    # ECSServiceAutoScalingRole:
+        # Description: A reference to ECS service auto scaling role
+        # Value: !GetAtt ECSServiceAutoScalingRole.Arn
+
+    # ECSAutoScalingGroupName:
+        # Description: A reference to ECS AutoScaling Group Name
+        # Value: !Ref ECSAutoScalingGroup
