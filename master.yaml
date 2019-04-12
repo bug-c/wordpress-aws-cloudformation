@@ -278,3 +278,22 @@ Resources:
                 SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
                 InternalSecurityGroup: !GetAtt SecurityGroups.Outputs.InternalLoadBalancerSecurityGroup
                 
+    ECS:
+        Type: AWS::CloudFormation::Stack
+        Properties:
+            TemplateURL: infrastructure/ecs-cluster.yaml
+            Parameters:
+                StackName: !Ref AWS::StackName
+                EnvironmentName: !Ref EnvironmentName
+                KeyName: !Ref KeyName
+                InstanceType: !Ref InstanceType
+                InstanceTypesOverride: !Ref InstanceTypesOverride
+                ClusterMinSize: !Ref ClusterMinSize
+                ClusterDesiredSize: !Ref ClusterDesiredSize
+                ClusterMaxSize: !Ref ClusterMaxSize
+                OnDemandBaseCapacity: !Ref OnDemandBaseCapacity
+                OnDemandPercentageAboveBaseCapacity: !Ref OnDemandPercentageAboveBaseCapacity
+                SpotInstancePools: !Ref SpotInstancePools
+                VPC: !GetAtt VPC.Outputs.VPC
+                SecurityGroup: !GetAtt SecurityGroups.Outputs.ECSHostSecurityGroup
+                Subnets: !GetAtt VPC.Outputs.PrivateSubnets
